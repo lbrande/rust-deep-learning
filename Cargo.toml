@@ -1,0 +1,8 @@
+[package]
+name = "rust_deep_learning"
+version = "0.1.0"
+authors = ["Love Brandefelt <lbrande>"]
+edition = "2018"
+
+[dependencies]
+lib = { path = "lib" }
