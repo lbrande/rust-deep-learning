@@ -7,7 +7,6 @@ use std::slice::Iter;
 
 pub type Vector = DVector<f64>;
 pub type Matrix = DMatrix<f64>;
-pub type Data = (Vector, Vector);
 
 pub trait SliceUp<T> {
     fn zip<'a, U>(&'a self, other: &'a [U]) -> Zip<Iter<'a, T>, Iter<'a, U>>;
@@ -117,4 +116,8 @@ pub fn zeros1(len: usize) -> Vector {
 
 pub fn zeros2(nrows: usize, ncols: usize) -> Matrix {
     DMatrix::from_element(nrows, ncols, 0.0)
+}
+
+pub fn from_vec1(v: Vec<f64>) -> Vector {
+    DVector::from_vec(v)
 }

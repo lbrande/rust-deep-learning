@@ -2,6 +2,8 @@ mod utils;
 
 use utils::*;
 
+pub type Data = (Vector, Vector);
+
 pub struct Network {
     nlayers: usize,
     biases: Vec<Vector>,
@@ -100,6 +102,10 @@ impl Network {
             a = w * a + b
         }
         a
+    }
+
+    pub fn data_from_vec(x: Vec<f64>, y: Vec<f64>) -> Data {
+        (from_vec1(x), from_vec1(y))
     }
 }
 
