@@ -9,32 +9,91 @@ pub type Vector = DVector<f64>;
 pub type Matrix = DMatrix<f64>;
 pub type Data = (Vector, Vector);
 
-pub fn zip<'a, T, U>(slice_0: &'a [T], slice_1: &'a [U]) -> Zip<Iter<'a, T>, Iter<'a, U>> {
-    slice_0.iter().zip(slice_1)
+pub trait SliceUp<T> {
+    fn zip<'a, U>(&'a self, other: &'a [U]) -> Zip<Iter<'a, T>, Iter<'a, U>>;
+    fn map<U>(&self, f: &Fn(&T) -> U) -> Vec<U>;
+    fn sum_by<U: Sum>(&self, f: &Fn(&T) -> U) -> U;
+    fn zip_map<U, V>(&self, other: &[U], f: &Fn(&T, &U) -> V) -> Vec<V>;
+    fn elem(&self, index: i32) -> &T;
+    fn slice(&self, start: i32, end: i32) -> &[T];
+    fn shuffle(&mut self);
 }
 
-pub fn map<T, U>(f: &Fn(&T) -> U, slice: &[T]) -> Vec<U> {
-    slice.iter().map(|t| f(t)).collect()
+impl<T> SliceUp<T> for [T] {
+    fn zip<'a, U>(&'a self, other: &'a [U]) -> Zip<Iter<'a, T>, Iter<'a, U>> {
+        self.iter().zip(other)
+    }
+
+    fn map<U>(&self, f: &Fn(&T) -> U) -> Vec<U> {
+        self.iter().map(|t| f(t)).collect()
+    }
+
+    fn sum_by<U: Sum>(&self, f: &Fn(&T) -> U) -> U {
+        self.iter().map(|t| f(t)).sum()
+    }
+
+    fn zip_map<U, V>(&self, other: &[U], f: &Fn(&T, &U) -> V) -> Vec<V> {
+        self.iter()
+            .zip(other)
+            .map(|(t_0, t_1)| f(t_0, t_1))
+            .collect()
+    }
+
+    fn elem(&self, mut index: i32) -> &T {
+        if index < 0 {
+            index += self.len() as i32;
+        }
+        &self[index as usize]
+    }
+
+
+    fn slice(&self, mut start: i32, mut end: i32) -> &[T] {
+        if start < 0 {
+            start += self.len() as i32;
+        }
+        if end <= 0 {
+            end += self.len() as i32;
+        }
+        &self[start as usize..end as usize]
+    }
+
+    fn shuffle(&mut self) {
+        SliceRandom::shuffle(self, &mut thread_rng())
+    }
 }
 
-pub fn sum_by<T, U: Sum>(f: &Fn(&T) -> U, slice: &[T]) -> U {
-    slice.iter().map(|t| f(t)).sum()
+pub trait VectorUp {
+    fn sigmoid(&self) -> Vector;
+
+    fn sigmoid_prime(&self) -> Vector;
+
+    fn hadamard(&self, v: &Vector) -> Vector;
 }
 
-pub fn zip_with<T, U, V>(f: &Fn(&T, &U) -> V, slice_0: &[T], slice_1: &[U]) -> Vec<V> {
-    slice_0
-        .iter()
-        .zip(slice_1)
-        .map(|(t_0, t_1)| f(t_0, t_1))
-        .collect()
+impl VectorUp for Vector {
+    fn sigmoid(&self) -> Vector {
+        self.map(&sigmoid)
+    }
+
+    fn sigmoid_prime(&self) -> Vector {
+        self.map(&sigmoid_prime)
+    }
+
+    fn hadamard(&self, v: &Vector) -> Vector {
+        self.zip_map(v, |x, y| x * y)
+    }
 }
 
-pub fn randn() -> f64 {
+fn randn() -> f64 {
     thread_rng().sample(StandardNormal)
 }
 
-pub fn shuffle<T>(slice: &mut [T]) {
-    slice.shuffle(&mut thread_rng())
+fn sigmoid(z: f64) -> f64 {
+    1.0 / (1.0 + f64::exp(-z))
+}
+
+fn sigmoid_prime(z: f64) -> f64 {
+    sigmoid(z) * (1.0 - sigmoid(z))
 }
 
 pub fn randn1(len: usize) -> Vector {

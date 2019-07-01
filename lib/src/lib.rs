@@ -9,11 +9,11 @@ pub struct Network {
 
 impl Network {
     pub fn new(layers: &[usize]) -> Self {
-        let init = &layers[1..];
-        let tail = &layers[..layers.len() - 1];
+        let init = layers.slice(1, 0);
+        let tail = layers.slice(0, -1);
         Self {
-            biases: map(&|&x| randn1(x), init),
-            weights: zip_with(&|&x, &y| randn2(x, y), tail, init),
+            biases: init.map(&|&x| randn1(x)),
+            weights: tail.zip_map(init, &|&x, &y| randn2(x, y)),
         }
     }
 
@@ -26,7 +26,7 @@ impl Network {
         test_data: Option<&[Data]>,
     ) {
         for i in 0..epochs {
-            shuffle(training_data);
+            training_data.shuffle();
             for j in (0..training_data.len()).step_by(batch_size) {
                 let batch = &training_data[j..j + batch_size];
                 self.train_batch(batch, learning_rate);
@@ -48,44 +48,43 @@ impl Network {
         let (mut nabla_b, mut nabla_w) = self.nabla_zeros();
         for data in batch {
             let (delta_nabla_b, delta_nabla_w) = self.backpropagate(data);
-            nabla_b = zip_with(&|nb, dnb| nb + dnb, &nabla_b, &delta_nabla_b);
-            nabla_w = zip_with(&|nw, dnw| nw + dnw, &nabla_w, &delta_nabla_w);
+            nabla_b = nabla_b.zip_map(&delta_nabla_b, &|nb, dnb| nb + dnb);
+            nabla_w = nabla_w.zip_map(&delta_nabla_w, &|nw, dnw| nw + dnw);
         }
-        self.biases = zip_with(
-            &|b, nb| b - learning_rate * nb / batch.len() as f64,
-            &self.biases,
-            &nabla_b,
-        );
-        self.weights = zip_with(
-            &|w, nw| w - learning_rate * nw / batch.len() as f64,
-            &self.weights,
-            &nabla_w,
-        );
+        self.biases = self.biases.zip_map(&nabla_b, &|b, nb| {
+            b - learning_rate * nb / batch.len() as f64
+        });
+        self.weights = self.weights.zip_map(&nabla_w, &|w, nw| {
+            w - learning_rate * nw / batch.len() as f64
+        });
     }
 
-    fn backpropagate(&self, data: &Data) -> (Vec<Vector>, Vec<Matrix>) {
+    fn backpropagate(&self, (x, y): &Data) -> (Vec<Vector>, Vec<Matrix>) {
         let (mut nabla_b, mut nabla_w) = self.nabla_zeros();
+        let mut activations = vec![x.clone()];
+        let mut zs = Vec::new();
+        for (b, w) in self.biases.zip(&self.weights) {
+            zs.push(w * activations.elem(-1) + b);
+            activations.push(zs.elem(-1).sigmoid());
+        }
+        let delta = (activations.elem(-1) - y).hadamard(&(zs.elem(-1).sigmoid_prime()));
         (nabla_b, nabla_w)
     }
 
     fn nabla_zeros(&self) -> (Vec<Vector>, Vec<Matrix>) {
         (
-            map(&|b: &Vector| zeros1(b.len()), &self.biases),
-            map(&|w: &Matrix| zeros2(w.nrows(), w.ncols()), &self.weights),
+            self.biases.map(&|b: &Vector| zeros1(b.len())),
+            self.weights.map(&|w: &Matrix| zeros2(w.nrows(), w.ncols())),
         )
     }
 
     fn evaluate(&self, test_data: &[Data]) -> usize {
-        sum_by(
-            &|(x, y): &Data| (self.feedforward(x).imax() == y.imax()) as usize,
-            test_data,
-        )
+        test_data.sum_by(&|(x, y): &Data| (self.feedforward(x).imax() == y.imax()) as usize)
     }
 
-    fn feedforward(&self, input: &Vector) -> Vector {
-        let (b, w) = (&self.biases[0], &self.weights[0]);
-        let mut a = w * input + b;
-        for (b, w) in zip(&self.biases[1..], &self.weights[1..]) {
+    fn feedforward(&self, x: &Vector) -> Vector {
+        let mut a = x.clone();
+        for (b, w) in self.biases.zip(&self.weights) {
             a = w * a + b
         }
         a
