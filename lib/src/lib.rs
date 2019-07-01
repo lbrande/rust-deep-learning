@@ -1,4 +1,4 @@
-mod utils;
+pub mod utils;
 
 use utils::*;
 
@@ -12,11 +12,11 @@ pub struct Network {
 
 impl Network {
     pub fn new(layers: &[usize]) -> Self {
-        let init = layers.slice(1, 0);
-        let tail = layers.slice(0, -1);
+        let init = layers.slice(0, -1);
+        let tail = layers.slice(1, 0);
         Self {
             nlayers: layers.len(),
-            biases: init.map(&|&x| randn1(x)),
+            biases: tail.map(&|&x| randn1(x)),
             weights: tail.zip_map(init, &|&x, &y| randn2(x, y)),
         }
     }
@@ -99,12 +99,12 @@ impl Network {
     fn feedforward(&self, x: &Vector) -> Vector {
         let mut a = x.clone();
         for (b, w) in self.biases.zip(&self.weights) {
-            a = w * a + b
+            a = (w * a + b).sigmoid();
         }
         a
     }
 
-    pub fn data_from_vec(x: Vec<f64>, y: Vec<f64>) -> Data {
+    pub fn data_from_vecs(x: Vec<f64>, y: Vec<f64>) -> Data {
         (from_vec1(x), from_vec1(y))
     }
 }
