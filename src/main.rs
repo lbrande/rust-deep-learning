@@ -1,11 +1,8 @@
-use std::fs::File;
-use std::io::Read;
 use lib::*;
+use std::io::Read;
 
-fn main() {
-    let x = Network::data_from_vec(Vec::new(), Vec::new());
-    println!("Hello, world!");
-}
+
+fn main() {}
 
 fn load(name: &str) -> Vec<Data> {
     let mut image_file = File::open(format!("{}-images.idx3-ubyte", name)).unwrap();
