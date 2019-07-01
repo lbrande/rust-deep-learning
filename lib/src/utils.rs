@@ -15,6 +15,7 @@ pub trait SliceUp<T> {
     fn sum_by<U: Sum>(&self, f: &Fn(&T) -> U) -> U;
     fn zip_map<U, V>(&self, other: &[U], f: &Fn(&T, &U) -> V) -> Vec<V>;
     fn elem(&self, index: i32) -> &T;
+    fn set_elem(&mut self, mut index: i32, value: T);
     fn slice(&self, start: i32, end: i32) -> &[T];
     fn shuffle(&mut self);
 }
@@ -46,6 +47,12 @@ impl<T> SliceUp<T> for [T] {
         &self[index as usize]
     }
 
+    fn set_elem(&mut self, mut index: i32, value: T) {
+        if index < 0 {
+            index += self.len() as i32;
+        }
+        self[index as usize] = value;
+    }
 
     fn slice(&self, mut start: i32, mut end: i32) -> &[T] {
         if start < 0 {

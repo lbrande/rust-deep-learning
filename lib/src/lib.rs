@@ -3,6 +3,7 @@ mod utils;
 use utils::*;
 
 pub struct Network {
+    nlayers: usize,
     biases: Vec<Vector>,
     weights: Vec<Matrix>,
 }
@@ -12,6 +13,7 @@ impl Network {
         let init = layers.slice(1, 0);
         let tail = layers.slice(0, -1);
         Self {
+            nlayers: layers.len(),
             biases: init.map(&|&x| randn1(x)),
             weights: tail.zip_map(init, &|&x, &y| randn2(x, y)),
         }
@@ -67,7 +69,17 @@ impl Network {
             zs.push(w * activations.elem(-1) + b);
             activations.push(zs.elem(-1).sigmoid());
         }
-        let delta = (activations.elem(-1) - y).hadamard(&(zs.elem(-1).sigmoid_prime()));
+        let mut delta = (activations.elem(-1) - y).hadamard(&(zs.elem(-1).sigmoid_prime()));
+        nabla_b.set_elem(-1, delta.clone());
+        nabla_w.set_elem(-1, delta.clone() * activations.elem(-2).transpose());
+        for i in 2..self.nlayers {
+            let i = i as i32;
+            let z = zs.elem(-i);
+            let sp = z.sigmoid_prime();
+            delta = (self.weights.elem(-i + 1).transpose() * delta).hadamard(&sp);
+            nabla_b.set_elem(-i, delta.clone());
+            nabla_w.set_elem(-i, delta.clone() * activations.elem(-i - 1).transpose());
+        }
         (nabla_b, nabla_w)
     }
 
