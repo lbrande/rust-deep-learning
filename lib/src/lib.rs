@@ -1,13 +1,10 @@
 mod utils;
 
-use nalgebra::*;
 use utils::*;
 
-type Data = (DVector<f64>, DVector<f64>);
-
 pub struct Network {
-    biases: Vec<DVector<f64>>,
-    weights: Vec<DMatrix<f64>>,
+    biases: Vec<Vector>,
+    weights: Vec<Matrix>,
 }
 
 impl Network {
@@ -15,8 +12,8 @@ impl Network {
         let init = &layers[1..];
         let tail = &layers[..layers.len() - 1];
         Self {
-            biases: map(&|&x| randn_vector(x), init),
-            weights: zip_with(&|&x, &y| randn_matrix(x, y), tail, init),
+            biases: map(&|&x| randn1(x), init),
+            weights: zip_with(&|&x, &y| randn2(x, y), tail, init),
         }
     }
 
@@ -47,7 +44,36 @@ impl Network {
         }
     }
 
-    fn train_batch(&mut self, batch: &[Data], learning_rate: f64) {}
+    fn train_batch(&mut self, batch: &[Data], learning_rate: f64) {
+        let (mut nabla_b, mut nabla_w) = self.nabla_zeros();
+        for data in batch {
+            let (delta_nabla_b, delta_nabla_w) = self.backpropagate(data);
+            nabla_b = zip_with(&|nb, dnb| nb + dnb, &nabla_b, &delta_nabla_b);
+            nabla_w = zip_with(&|nw, dnw| nw + dnw, &nabla_w, &delta_nabla_w);
+        }
+        self.biases = zip_with(
+            &|b, nb| b - learning_rate * nb / batch.len() as f64,
+            &self.biases,
+            &nabla_b,
+        );
+        self.weights = zip_with(
+            &|w, nw| w - learning_rate * nw / batch.len() as f64,
+            &self.weights,
+            &nabla_w,
+        );
+    }
+
+    fn backpropagate(&self, data: &Data) -> (Vec<Vector>, Vec<Matrix>) {
+        let (mut nabla_b, mut nabla_w) = self.nabla_zeros();
+        (nabla_b, nabla_w)
+    }
+
+    fn nabla_zeros(&self) -> (Vec<Vector>, Vec<Matrix>) {
+        (
+            map(&|b: &Vector| zeros1(b.len()), &self.biases),
+            map(&|w: &Matrix| zeros2(w.nrows(), w.ncols()), &self.weights),
+        )
+    }
 
     fn evaluate(&self, test_data: &[Data]) -> usize {
         sum_by(
@@ -56,7 +82,7 @@ impl Network {
         )
     }
 
-    fn feedforward(&self, input: &DVector<f64>) -> DVector<f64> {
+    fn feedforward(&self, input: &Vector) -> Vector {
         let (b, w) = (&self.biases[0], &self.weights[0]);
         let mut a = w * input + b;
         for (b, w) in zip(&self.biases[1..], &self.weights[1..]) {
