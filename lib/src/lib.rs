@@ -2,7 +2,7 @@ pub mod utils;
 
 use utils::*;
 
-pub type Data = (Vector, Vector);
+/*pub type Data = (Vector, Vector);
 
 pub struct Network {
     nlayers: usize,
@@ -107,7 +107,35 @@ impl Network {
     pub fn data_from_vecs(x: Vec<f64>, y: Vec<f64>) -> Data {
         (from_vec1(x), from_vec1(y))
     }
-}
+}*/
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use crate::utils::*;
+
+    #[test]
+    fn test_indexing() {
+        let mut v = Vector::from_val(5, 0);
+        v[-2] = 4;
+        assert_eq!(4, v[3]);
+    }
+
+    #[test]
+    fn test_slicing() {
+        let mut v = Vector::from_val(5, 0);
+        let s = &mut v[-2..0];
+        s[0] = 4;
+        assert_eq!(4, v[3]);
+        assert_eq!(&[4, 0], &v[3..]);
+        assert_eq!(&[0, 0, 0, 4], &v[..-1]);
+        assert_eq!(&[0, 0, 0, 4, 0], &v[..]);
+    }
+
+    #[test]
+    fn test_matrix_indexing() {
+        let mut m = Matrix::from_val(5, 5, 0.0);
+        let mut n = Matrix::from_val(5, 5, 1.0);
+        let mut k = &m + &n;
+        assert_eq!(n, k);
+    }
+}

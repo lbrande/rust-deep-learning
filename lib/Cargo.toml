@@ -5,6 +5,7 @@ authors = ["Love Brandefelt <lbrande>"]
 edition = "2018"
 
 [dependencies]
-nalgebra = "0.18.0"
+blas = "0.20.0"
+openblas-src = { version = "0.7.0", default-features = false, features = ["cblas", "system"]}
 rand = "0.7.0"
 rand_distr = "0.2.1"
