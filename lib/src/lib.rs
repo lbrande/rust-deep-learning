@@ -1,5 +1,4 @@
 pub mod utils;
-
 use utils::*;
 
 /*pub type Data = (Vector, Vector);
@@ -142,6 +141,6 @@ mod tests {
         let x = vec![0.0, 1.0, 3.0, 2.0];
         let mut y = vec![0.0; 4];
         dcopy(4, &x[..], &mut y[..]);
-        //assert_eq!(x, y);
+        assert_eq!(x, y);
     }
 }

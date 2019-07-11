@@ -1,3 +1,4 @@
+use mkl::cblas::*;
 use libc::*;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
@@ -9,7 +10,7 @@ use std::ops::*;
 
 pub fn dcopy(n: i32, x: &[f64], y: &mut [f64]) {
     unsafe {
-        cblas_dcopy(&n, x.as_ptr(), &1, y.as_mut_ptr(), &1);
+        cblas_dcopy(n, x.as_ptr(), 1, y.as_mut_ptr(), 1);
     }
 }
 
