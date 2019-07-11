@@ -5,7 +5,9 @@ authors = ["Love Brandefelt <lbrande>"]
 edition = "2018"
 
 [dependencies]
-blas = "0.20.0"
-openblas-src = { version = "0.7.0", default-features = false, features = ["cblas", "system"]}
+libc = "0.2.5"
 rand = "0.7.0"
 rand_distr = "0.2.1"
+
+[build-dependencies]
+pkg-config = "0.3.14"

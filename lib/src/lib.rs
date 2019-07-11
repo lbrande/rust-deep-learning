@@ -133,9 +133,15 @@ mod tests {
 
     #[test]
     fn test_matrix_indexing() {
-        let mut m = Matrix::from_val(5, 5, 0.0);
-        let mut n = Matrix::from_val(5, 5, 1.0);
-        let mut k = &m + &n;
-        assert_eq!(n, k);
+        let mut m = Matrix::from_val(5, 5, 0);
+        m[(-2, 1)] = 4;
+        assert_eq!(4, m[(3, -4)]);
+    }
+    #[test]
+    fn testing() {
+        let x = vec![0.0, 1.0, 3.0, 2.0];
+        let mut y = vec![0.0; 4];
+        dcopy(4, &x[..], &mut y[..]);
+        //assert_eq!(x, y);
     }
 }

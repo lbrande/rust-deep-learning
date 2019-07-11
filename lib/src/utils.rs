@@ -1,10 +1,17 @@
-use blas::*;
+use libc::*;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand_distr::StandardNormal;
-use std::iter::*;
+
 use std::isize;
+use std::iter::*;
 use std::ops::*;
+
+pub fn dcopy(n: i32, x: &[f64], y: &mut [f64]) {
+    unsafe {
+        cblas_dcopy(&n, x.as_ptr(), &1, y.as_mut_ptr(), &1);
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub struct Vector<T> {
@@ -145,7 +152,7 @@ impl<T> IndexMut<RangeFull> for Vector<T> {
 pub struct Matrix<T> {
     nrows: isize,
     ncols: isize,
-    data: Vec<T>
+    data: Vec<T>,
 }
 
 impl<T> Matrix<T> {
@@ -156,7 +163,7 @@ impl<T> Matrix<T> {
         Self {
             nrows,
             ncols,
-            data: (0..nrows*ncols).map(f).collect(),
+            data: (0..nrows * ncols).map(f).collect(),
         }
     }
 
@@ -208,7 +215,7 @@ impl<T: Copy> Matrix<T> {
         Self {
             nrows,
             ncols,
-            data: vec![val; (nrows*ncols) as usize],
+            data: vec![val; (nrows * ncols) as usize],
         }
     }
 }
@@ -227,7 +234,7 @@ impl<T> IndexMut<(isize, isize)> for Matrix<T> {
     }
 }
 
-impl Add<Self> for &Matrix<f64> {
+/*impl Add<Self> for &Matrix<f64> {
     type Output = Matrix<f64>;
 
     fn add(self, other: Self) -> Self::Output {
@@ -240,7 +247,7 @@ impl Add<Self> for &Matrix<f64> {
         }
         result
     }
-}
+}*/
 
 pub fn randn() -> f64 {
     thread_rng().sample(StandardNormal)
