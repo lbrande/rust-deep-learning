@@ -7,41 +7,41 @@ use std::isize;
 use std::iter::*;
 use std::ops::*;
 
+static ILLEGAL_SHAPE: &'static str = "illegal shape";
+static MISSMATCHED_SHAPE: &'static str = "missmatched shape";
+static MISSMATCHED_SHAPES: &'static str = "missmatched shapes";
+static INDEX_OUT_OF_BOUNDS: &'static str = "index out of bounds";
+
 #[derive(Debug, PartialEq)]
 pub struct Vector<T> {
-    nrows: isize,
+    shape: isize,
     data: Vec<T>,
 }
 
 impl<T> Vector<T> {
-    pub fn from_fn(nrows: isize, f: &Fn(isize) -> T) -> Self {
-        if nrows < 0 {
-            panic!("nrows can't be negative");
-        }
+    pub fn from_fn(shape: isize, f: &Fn(isize) -> T) -> Self {
+        Self::illegal_shape_panic(shape);
         Self {
-            nrows,
-            data: (0..nrows).map(f).collect(),
+            shape,
+            data: (0..shape).map(f).collect(),
         }
     }
 
-    pub fn from_data(data: Vec<T>) -> Self {
+    pub fn from_data(shape: isize, data: Vec<T>) -> Self {
+        Self::missmatched_shape_panic(shape, &data);
         Self {
-            nrows: data.len() as isize,
+            shape: data.len() as isize,
             data,
         }
     }
 
-    pub fn nrows(&self) -> isize {
-        self.nrows
-    }
-
-    pub fn shape(&self) -> (isize) {
-        (self.nrows)
+    pub fn shape(&self) -> isize {
+        self.shape
     }
 
     fn fix_start(&self, start: isize) -> usize {
         if start < 0 {
-            (start + self.nrows) as usize
+            (start + self.shape) as usize
         } else {
             start as usize
         }
@@ -49,27 +49,37 @@ impl<T> Vector<T> {
 
     fn fix_end(&self, end: isize) -> usize {
         if end <= 0 {
-            (end + self.nrows) as usize
+            (end + self.shape) as usize
         } else {
             end as usize
         }
     }
 
-    fn check_has_same_shape(&self, other: &Self) {
+    fn illegal_shape_panic(shape: isize) {
+        if shape < 0 {
+            panic!(ILLEGAL_SHAPE);
+        }
+    }
+
+    fn missmatched_shape_panic(shape: isize, data: &[T]) {
+        if shape as usize != data.len() {
+            panic!(MISSMATCHED_SHAPE);
+        }
+    }
+
+    fn missmatched_shapes_panic(&self, other: &Self) {
         if self.shape() != other.shape() {
-            panic!("shapes don't match");
+            panic!(MISSMATCHED_SHAPES);
         }
     }
 }
 
 impl<T: Copy> Vector<T> {
-    pub fn from_val(nrows: isize, val: T) -> Self {
-        if nrows < 0 {
-            panic!("nrows can't be negative");
-        }
+    pub fn from_val(shape: isize, val: T) -> Self {
+        Self::illegal_shape_panic(shape);
         Self {
-            nrows,
-            data: vec![val; nrows as usize],
+            shape,
+            data: vec![val; shape as usize],
         }
     }
 
@@ -150,79 +160,79 @@ impl<T> IndexMut<RangeFull> for Vector<T> {
 
 #[derive(Debug, PartialEq)]
 pub struct Matrix<T> {
-    nrows: isize,
-    ncols: isize,
+    shape: (isize, isize),
     data: Vec<T>,
 }
 
 impl<T> Matrix<T> {
-    pub fn from_fn(nrows: isize, ncols: isize, f: &Fn(isize) -> T) -> Self {
-        if nrows < 0 || ncols < 0 {
-            panic!("nrows and ncols can't be negative");
-        }
+    pub fn from_fn(shape: (isize, isize), f: &Fn(isize) -> T) -> Self {
+        Self::illegal_shape_panic(shape);
         Self {
-            nrows,
-            ncols,
-            data: (0..nrows * ncols).map(f).collect(),
+            shape,
+            data: (0..shape.0 * shape.1).map(f).collect(),
         }
     }
 
-    pub fn from_data(data: Vec<T>, nrows: isize) -> Self {
-        if nrows < 0 {
-            panic!("nrows can't be negative");
-        }
-        if data.len() % nrows as usize != 0 {
-            panic!("len not divisible by nrows")
-        }
+    pub fn from_data(shape: (isize, isize), data: Vec<T>) -> Self {
+        Self::illegal_shape_panic(shape);
+        Self::missmatched_shape_panic(shape, &data);
         Self {
-            nrows,
-            ncols: (data.len() / nrows as usize) as isize,
+            shape,
             data,
         }
     }
 
-    pub fn nrows(&self) -> isize {
-        self.nrows
-    }
-
-    pub fn ncols(&self) -> isize {
-        self.ncols
-    }
-
     pub fn shape(&self) -> (isize, isize) {
-        (self.nrows, self.ncols)
+        self.shape
     }
 
-    fn fix_index(&self, mut start: (isize, isize)) -> usize {
-        if start.0 >= self.nrows {
-            panic!("row out of bounds");
+    fn fix_index(&self, mut index: (isize, isize)) -> usize {
+        self.index_out_of_bound_panic(index);
+        if index.0 < 0 {
+            index.0 += self.shape.0;
         }
-        if start.0 < 0 {
-            start.0 += self.nrows;
+        if index.1 < 0 {
+            index.1 += self.shape.1;
         }
-        if start.1 < 0 {
-            start.1 += self.ncols;
-        }
-        start.1 as usize * self.nrows as usize + start.0 as usize
+        index.1 as usize * self.shape.0 as usize + index.0 as usize
     }
 
-    fn check_has_same_shape(&self, other: &Self) {
+    fn illegal_shape_panic(shape: (isize, isize)) {
+        if shape.0 < 0 || shape.1 < 0 {
+            panic!(ILLEGAL_SHAPE);
+        }
+    }
+
+    fn missmatched_shape_panic(shape: (isize, isize), data: &[T]) {
+        if (shape.0 * shape.1) as usize != data.len() {
+            panic!(MISSMATCHED_SHAPE);
+        }
+    }
+
+    fn missmatched_shapes_panic(&self, other: &Self) {
         if self.shape() != other.shape() {
-            panic!("shapes don't match");
+            panic!(MISSMATCHED_SHAPES);
+        }
+    }
+
+    fn index_out_of_bound_panic(&self, index: (isize, isize)) {
+        if index.0 >= self.shape.0 {
+            panic!(INDEX_OUT_OF_BOUNDS);
         }
     }
 }
 
 impl<T: Copy> Matrix<T> {
-    pub fn from_val(nrows: isize, ncols: isize, val: T) -> Self {
-        if nrows < 0 || ncols < 0 {
-            panic!("nrows and ncols can't be negative");
-        }
+    pub fn from_val(shape: (isize, isize), val: T) -> Self {
+        Self::illegal_shape_panic(shape);
         Self {
-            nrows,
-            ncols,
-            data: vec![val; (nrows * ncols) as usize],
+            shape,
+            data: vec![val; (shape.0 * shape.1) as usize],
         }
+    }
+
+    pub fn shuffle(&mut self) {
+        SliceRandom::shuffle(&mut self.data[..], &mut thread_rng());
     }
 }
 
@@ -244,11 +254,25 @@ impl Add<Self> for &Vector<f64> {
     type Output = Vector<f64>;
 
     fn add(self, other: Self) -> Self::Output {
-        self.check_has_same_shape(other);
-        let mut result = Vector::from_val(self.nrows, 0.0);
+        self.missmatched_shapes_panic(other);
+        let mut result = Vector::from_val(self.shape, 0.0);
         unsafe {
-            DAXPY(&(self.data.len() as i32), &1.0, self.data.as_ptr(), &1, result.data.as_mut_ptr(), &1);
-            DAXPY(&(self.data.len() as i32), &1.0, other.data.as_ptr(), &1, result.data.as_mut_ptr(), &1);
+            DAXPY(
+                &(self.data.len() as i32),
+                &1.0,
+                self.data.as_ptr(),
+                &1,
+                result.data.as_mut_ptr(),
+                &1,
+            );
+            DAXPY(
+                &(self.data.len() as i32),
+                &1.0,
+                other.data.as_ptr(),
+                &1,
+                result.data.as_mut_ptr(),
+                &1,
+            );
         }
         result
     }
@@ -258,11 +282,25 @@ impl Add<Self> for &Matrix<f64> {
     type Output = Matrix<f64>;
 
     fn add(self, other: Self) -> Self::Output {
-        self.check_has_same_shape(other);
-        let mut result = Matrix::from_val(self.nrows, self.ncols, 0.0);
+        self.missmatched_shapes_panic(other);
+        let mut result = Matrix::from_val(self.shape, 0.0);
         unsafe {
-            DAXPY(&(self.data.len() as i32), &1.0, self.data.as_ptr(), &1, result.data.as_mut_ptr(), &1);
-            DAXPY(&(self.data.len() as i32), &1.0, other.data.as_ptr(), &1, result.data.as_mut_ptr(), &1);
+            DAXPY(
+                &(self.data.len() as i32),
+                &1.0,
+                self.data.as_ptr(),
+                &1,
+                result.data.as_mut_ptr(),
+                &1,
+            );
+            DAXPY(
+                &(self.data.len() as i32),
+                &1.0,
+                other.data.as_ptr(),
+                &1,
+                result.data.as_mut_ptr(),
+                &1,
+            );
         }
         result
     }
