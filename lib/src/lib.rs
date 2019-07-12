@@ -137,10 +137,9 @@ mod tests {
         assert_eq!(4, m[(3, -4)]);
     }
     #[test]
-    fn testing() {
-        let x = vec![0.0, 1.0, 3.0, 2.0];
-        let mut y = vec![0.0; 4];
-        dcopy(4, &x[..], &mut y[..]);
-        assert_eq!(x, y);
+    fn test_add() {
+        let x = Vector::from_data(vec![0.0, 1.0, 3.0, 2.0]);
+        let y =  Vector::from_data(vec![4.0, 7.0, 1.0, -5.0]);
+        assert_eq!(Vector::from_data(vec![4.0, 8.0, 4.0, -3.0]), &x + &y);
     }
 }

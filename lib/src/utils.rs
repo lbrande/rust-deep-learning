@@ -1,5 +1,4 @@
-use mkl::cblas::*;
-use libc::*;
+use mkl::blas::*;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand_distr::StandardNormal;
@@ -7,12 +6,6 @@ use rand_distr::StandardNormal;
 use std::isize;
 use std::iter::*;
 use std::ops::*;
-
-pub fn dcopy(n: i32, x: &[f64], y: &mut [f64]) {
-    unsafe {
-        cblas_dcopy(n, x.as_ptr(), 1, y.as_mut_ptr(), 1);
-    }
-}
 
 #[derive(Debug, PartialEq)]
 pub struct Vector<T> {
@@ -59,6 +52,12 @@ impl<T> Vector<T> {
             (end + self.nrows) as usize
         } else {
             end as usize
+        }
+    }
+
+    fn check_has_same_shape(&self, other: &Self) {
+        if self.shape() != other.shape() {
+            panic!("shapes don't match");
         }
     }
 }
@@ -206,6 +205,12 @@ impl<T> Matrix<T> {
         }
         start.1 as usize * self.nrows as usize + start.0 as usize
     }
+
+    fn check_has_same_shape(&self, other: &Self) {
+        if self.shape() != other.shape() {
+            panic!("shapes don't match");
+        }
+    }
 }
 
 impl<T: Copy> Matrix<T> {
@@ -235,20 +240,33 @@ impl<T> IndexMut<(isize, isize)> for Matrix<T> {
     }
 }
 
-/*impl Add<Self> for &Matrix<f64> {
-    type Output = Matrix<f64>;
+impl Add<Self> for &Vector<f64> {
+    type Output = Vector<f64>;
 
     fn add(self, other: Self) -> Self::Output {
-        if self.shape() != other.shape() {
-            panic!("shapes don't match");
-        }
-        let mut result = Matrix::from_val(self.nrows, self.ncols, 0.0);
+        self.check_has_same_shape(other);
+        let mut result = Vector::from_val(self.nrows, 0.0);
         unsafe {
-            daxpy(self.data.len() as i32, 1.0, &self.data[..], 1, &mut result.data[..], 1);
+            DAXPY(&(self.data.len() as i32), &1.0, self.data.as_ptr(), &1, result.data.as_mut_ptr(), &1);
+            DAXPY(&(self.data.len() as i32), &1.0, other.data.as_ptr(), &1, result.data.as_mut_ptr(), &1);
         }
         result
     }
-}*/
+}
+
+impl Add<Self> for &Matrix<f64> {
+    type Output = Matrix<f64>;
+
+    fn add(self, other: Self) -> Self::Output {
+        self.check_has_same_shape(other);
+        let mut result = Matrix::from_val(self.nrows, self.ncols, 0.0);
+        unsafe {
+            DAXPY(&(self.data.len() as i32), &1.0, self.data.as_ptr(), &1, result.data.as_mut_ptr(), &1);
+            DAXPY(&(self.data.len() as i32), &1.0, other.data.as_ptr(), &1, result.data.as_mut_ptr(), &1);
+        }
+        result
+    }
+}
 
 pub fn randn() -> f64 {
     thread_rng().sample(StandardNormal)

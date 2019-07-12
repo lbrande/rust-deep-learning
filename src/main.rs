@@ -1,3 +1,6 @@
+fn main() {
+    
+}
 /*use lib::*;
 use lib::utils::SliceUp;
 

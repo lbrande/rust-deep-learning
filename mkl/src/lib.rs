@@ -1,1 +1,1 @@
-pub mod cblas;
+pub mod blas;
