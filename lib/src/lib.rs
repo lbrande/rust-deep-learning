@@ -27,7 +27,7 @@ impl Network {
         test_data: Option<&Vector<Data>>,
     ) {
         for i in 0..epochs {
-            training_data.shuffle();
+            //training_data.shuffle();
             for j in (0..training_data.shape()).step_by(batch_size) {
                 let batch = &training_data;
                 self.train_batch(batch, learning_rate);
@@ -49,35 +49,37 @@ impl Network {
         let (mut nabla_b, mut nabla_w) = self.nabla_zeros();
         for data in batch.iter() {
             let (delta_nabla_b, delta_nabla_w) = self.backpropagate(data);
-            nabla_b.zip_apply(&delta_nabla_b, &|(&nb, dnb)| {nb += dnb});
-            nabla_w.zip_apply(&delta_nabla_w, &|(&nw, dnw)| {nw += dnw});
+            nabla_b = nabla_b.zip_map(&delta_nabla_b, &|(nb, dnb)| nb + dnb);
+            nabla_w = nabla_w.zip_map(&delta_nabla_w, &|(nw, dnw)| nw + dnw);
         }
-        self.biases.zip_apply(&nabla_b, &|(&b, nb)| {
-            b -= &(&(learning_rate * nb) / batch.len() as f64)
+        self.biases = self.biases.zip_map(&nabla_b, &|(b, nb)| {
+            b - &(&(learning_rate * nb) / batch.len() as f64)
         });
-        self.weights.zip_apply(&nabla_w, &|(&w, nw)| {
-            w -= &(&(learning_rate * nw) / batch.len() as f64)
+        self.weights = self.weights.zip_map(&nabla_w, &|(w, nw)| {
+            w - &(&(learning_rate * nw) / batch.len() as f64)
         });
     }
 
     fn backpropagate(&self, (x, y): &Data) -> (Vector<Vector<f64>>, Vector<Matrix<f64>>) {
         let (mut nabla_b, mut nabla_w) = self.nabla_zeros();
-        let mut activations = Vector::from_data(1, vec![x.data().clone()]);
+        let mut activations = Vector::from_data(1, vec![(*x).clone()]);
         let mut zs: Vector<Vector<f64>> = Vector::empty();
         for (b, w) in self.biases.zip(&self.weights) {
-            zs.push(&(w * activations[-1]) + b);
-            activations.push(zs.elem(-1).sigmoid());
+            zs.push(&(w * &mut activations[-1]) + b);
+            activations.push(zs[-1].map(&|&x| sigmoid(x)));
         }
-        let mut delta = (activations.elem(-1) - y).hadamard(&(zs.elem(-1).sigmoid_prime()));
-        nabla_b.set_elem(-1, delta.clone());
-        nabla_w.set_elem(-1, delta.clone() * activations.elem(-2).transpose());
+        let mut delta = (&activations[-1] - y).hadamard(&(zs[-1].map(&|&x| sigmoid_prime(x))));
+        nabla_b[-1] = delta.clone();
+        let mut activation = Matrix::from_vector(activations[-2].clone());
+        nabla_w[-1] = &delta.clone() * activation.transpose();
         for i in 2..self.nlayers {
-            let i = i as i32;
-            let z = zs.elem(-i);
-            let sp = z.sigmoid_prime();
-            delta = (self.weights.elem(-i + 1).transpose() * delta).hadamard(&sp);
-            nabla_b.set_elem(-i, delta.clone());
-            nabla_w.set_elem(-i, delta.clone() * activations.elem(-i - 1).transpose());
+            let i = i as isize;
+            let z = &zs[-i];
+            let sp = z.map(&|&x| sigmoid_prime(x));
+            delta = (&self.weights[-i + 1] * &mut delta).hadamard(&sp);
+            nabla_b[-i] = delta.clone();
+            let mut activation = Matrix::from_vector(activations[-i - 1].clone());
+            nabla_w[-i] = &delta.clone() * activation.transpose();
         }
         (nabla_b, nabla_w)
     }
@@ -94,9 +96,9 @@ impl Network {
     }
 
     fn feedforward(&self, x: &Vector<f64>) -> Vector<f64> {
-        let mut a = *x.clone();
+        let mut a = x.clone();
         for (b, w) in self.biases.zip(&self.weights) {
-            a = (&(w * &a) + b).map(&|&x| sigmoid(x));
+            a = (&(w * &mut a) + b).map(&|&x| sigmoid(x));
         }
         a
     }
@@ -108,7 +110,7 @@ impl Network {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::*;
+    /*use crate::utils::*;
 
     #[test]
     fn test_indexing() {
@@ -152,5 +154,5 @@ mod tests {
             Vector::from_data(4, vec![0.0, 7.0, 3.0, -10.0]),
             x.hadamard(&y)
         );
-    }
+    }*/
 }
