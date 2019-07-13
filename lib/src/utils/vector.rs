@@ -104,20 +104,6 @@ impl<T: Copy> Vector<T> {
     }
 }
 
-impl<'a, T: 'a> VectorUtils<'a, T> for Vector<T> {
-    fn data(&'a self) -> &'a [T] {
-        &self.data
-    }
-}
-
-impl<'a, T: 'a> VectorUtilsMut<'a, T> for Vector<T> {
-    fn data_mut(&'a mut self) -> &'a mut [T] {
-        &mut self.data
-    }
-}
-
-impl<'a, T: 'a> VectorUtilsCopy<'a, T> for Vector<T> {}
-
 impl<T> Index<isize> for Vector<T> {
     type Output = T;
 
@@ -191,6 +177,20 @@ impl<T> IndexMut<RangeFull> for Vector<T> {
         &mut self.data[..]
     }
 }
+
+impl<'a, T: 'a> VectorUtils<'a, T> for Vector<T> {
+    fn data(&'a self) -> &'a [T] {
+        &self.data
+    }
+}
+
+impl<'a, T: 'a> VectorUtilsMut<'a, T> for Vector<T> {
+    fn data_mut(&'a mut self) -> &'a mut [T] {
+        &mut self.data
+    }
+}
+
+impl<'a, T: 'a> VectorUtilsCopy<'a, T> for Vector<T> {}
 
 impl<'a, T: 'a> VectorUtils<'a, T> for &'a [T] {
     fn data(&'a self) -> &'a [T] {

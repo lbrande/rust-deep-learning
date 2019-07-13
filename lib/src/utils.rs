@@ -1,10 +1,11 @@
 use rand::prelude::*;
 use rand_distr::StandardNormal;
 
-pub mod matrix;
-pub mod vector;
+mod matrix;
+mod vector;
 
-/*pub use matrix::Matrix;*/
+pub use vector::*;
+pub use matrix::*;
 
 pub fn randn() -> f64 {
     thread_rng().sample(StandardNormal)

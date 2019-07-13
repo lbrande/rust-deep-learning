@@ -1,5 +1,6 @@
-/* use crate::utils::*;
-use rand::seq::SliceRandom;
+use mkl::blas::*;
+use mkl::vml::*;
+use std::ops::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Matrix<T> {
@@ -10,7 +11,7 @@ pub struct Matrix<T> {
 
 impl<T> Matrix<T> {
     pub fn from_fn(shape: (isize, isize), f: &Fn(isize) -> T) -> Self {
-        Self::illegal_shape_panic(shape);
+        assert!(shape.0 >= 0 && shape.1 >= 0);
         Self {
             shape,
             data: (0..shape.0 * shape.1).map(f).collect(),
@@ -18,9 +19,9 @@ impl<T> Matrix<T> {
         }
     }
 
-    pub fn from_data(shape: (isize, isize), data: Vec<T>) -> Self {
-        Self::illegal_shape_panic(shape);
-        Self::missmatched_shape_panic(shape, &data);
+    pub fn from_vec(shape: (isize, isize), data: Vec<T>) -> Self {
+        assert!(shape.0 >= 0 && shape.1 >= 0);
+        assert!((shape.0 * shape.1) as usize == data.len());
         Self {
             shape,
             data,
@@ -32,12 +33,8 @@ impl<T> Matrix<T> {
         self.shape
     }
 
-    pub fn data(&mut self) -> &mut Vec<T> {
-        &mut self.data
-    }
-
     fn fix_index(&self, mut index: (isize, isize)) -> usize {
-        self.index_out_of_bound_panic(index);
+        assert!(index.0 < self.shape.0);
         if index.0 < 0 {
             index.0 += self.shape.0;
         }
@@ -46,62 +43,14 @@ impl<T> Matrix<T> {
         }
         index.1 as usize * self.shape.0 as usize + index.0 as usize
     }
-
-    fn illegal_shape_panic(shape: (isize, isize)) {
-        if shape.0 < 0 || shape.1 < 0 {
-            panic!(ILLEGAL_SHAPE);
-        }
-    }
-
-    fn missmatched_shape_panic(shape: (isize, isize), data: &[T]) {
-        if (shape.0 * shape.1) as usize != data.len() {
-            panic!(MISSMATCHED_SHAPE);
-        }
-    }
-
-    fn missmatched_shapes_panic(&self, other: &Self) {
-        if self.shape() != other.shape() {
-            panic!(MISSMATCHED_SHAPES);
-        }
-    }
-
-    fn missmatched_shapes_mul_panic(&self, other: &Self) {
-        if self.shape.1 != other.shape.0 {
-            panic!(MISSMATCHED_SHAPES);
-        }
-    }
-
-    fn missmatched_shapes_mul_vec_panic(&self, other: &Vector<T>) {
-        if self.shape.1 != other.shape() {
-            panic!(MISSMATCHED_SHAPES);
-        }
-    }
-
-    fn index_out_of_bound_panic(&self, index: (isize, isize)) {
-        if index.0 >= self.shape.0 {
-            panic!(INDEX_OUT_OF_BOUNDS);
-        }
-    }
 }
 
 impl<T: Copy> Matrix<T> {
     pub fn from_val(shape: (isize, isize), val: T) -> Self {
-        Self::illegal_shape_panic(shape);
+        assert!(shape.0 >= 0 && shape.1 >= 0);
         Self {
             shape,
             data: vec![val; (shape.0 * shape.1) as usize],
-            transposed: false,
-        }
-    }
-
-    pub fn shuffle(&mut self) {
-        SliceRandom::shuffle(&mut self.data[..], &mut thread_rng());
-    }
-
-    pub fn from_vector(mut vector: Vector<T>) -> Self {
-        Self {
-            shape: (vector.shape(), 1),
-            data: vector.data().clone(),
             transposed: false,
         }
     }
@@ -114,6 +63,7 @@ impl<T> Index<(isize, isize)> for Matrix<T> {
         &self.data[self.fix_index(index)]
     }
 }
+
 impl<T> IndexMut<(isize, isize)> for Matrix<T> {
     fn index_mut(&mut self, index: (isize, isize)) -> &mut Self::Output {
         let index = self.fix_index(index);
@@ -125,7 +75,7 @@ impl Add<Self> for &Matrix<f64> {
     type Output = Matrix<f64>;
 
     fn add(self, other: Self) -> Self::Output {
-        self.missmatched_shapes_panic(other);
+        assert!(self.shape == other.shape);
         let mut result = Matrix::from_val(self.shape, 0.0);
         unsafe {
             VDADD_(
@@ -143,7 +93,7 @@ impl Sub<Self> for &Matrix<f64> {
     type Output = Matrix<f64>;
 
     fn sub(self, other: Self) -> Self::Output {
-        self.missmatched_shapes_panic(other);
+        assert!(self.shape == other.shape);
         let mut result = Matrix::from_val(self.shape, 0.0);
         unsafe {
             VDSUB_(
@@ -161,7 +111,7 @@ impl Mul<Self> for &Matrix<f64> {
     type Output = Matrix<f64>;
 
     fn mul(self, other: Self) -> Self::Output {
-        self.missmatched_shapes_mul_panic(other);
+        assert!(self.shape.1 == other.shape.0);
         let mut result = Matrix::from_val((self.shape.0, other.shape.1), 0.0);
         let m = self.shape.0 as i32;
         let n = other.shape.1 as i32;
@@ -170,8 +120,8 @@ impl Mul<Self> for &Matrix<f64> {
         let ldb = if other.transposed { n } else { k };
         unsafe {
             DGEMM(
-                &self.get_transpose_char(),
-                &other.get_transpose_char(),
+                &self.transpose_char(),
+                &other.transpose_char(),
                 &m,
                 &n,
                 &k,
@@ -183,33 +133,6 @@ impl Mul<Self> for &Matrix<f64> {
                 &1.0,
                 result.data.as_mut_ptr(),
                 &m,
-            );
-        }
-        result
-    }
-}
-
-impl Mul<&mut Vector<f64>> for &Matrix<f64> {
-    type Output = Vector<f64>;
-
-    fn mul(self, other: &mut Vector<f64>) -> Self::Output {
-        self.missmatched_shapes_mul_vec_panic(other);
-        let mut result = Vector::from_val(self.shape.0, 0.0);
-        let m = self.shape.0 as i32;
-        let n = self.shape.1 as i32;
-        unsafe {
-            DGEMV(
-                &self.get_transpose_char(),
-                &m,
-                &n,
-                &1.0,
-                self.data.as_ptr(),
-                &m,
-                other.data().as_ptr(),
-                &1,
-                &1.0,
-                result.data().as_mut_ptr(),
-                &1,
             );
         }
         result
@@ -282,7 +205,7 @@ impl Div<&Matrix<f64>> for f64 {
 
 impl Matrix<f64> {
     pub fn hadamard(&self, other: &Self) -> Self {
-        self.missmatched_shapes_panic(other);
+        assert!(self.shape == other.shape);
         let mut result = Matrix::from_val(self.shape, 0.0);
         unsafe {
             VDMUL_(
@@ -300,11 +223,7 @@ impl Matrix<f64> {
         self
     }
 
-    pub fn transposed(&self) -> bool {
-        self.transposed
-    }
-
-    pub fn get_transpose_char(&self) -> i8 {
+    fn transpose_char(&self) -> i8 {
         if self.transposed {
             'T' as i8
         } else {
@@ -312,4 +231,3 @@ impl Matrix<f64> {
         }
     }
 }
- */
