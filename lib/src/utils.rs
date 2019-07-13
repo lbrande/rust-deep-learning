@@ -1,22 +1,10 @@
-use mkl::blas::*;
-use mkl::vml::*;
 use rand::prelude::*;
 use rand_distr::StandardNormal;
 
-use std::iter::*;
-use std::slice::Iter;
-use std::ops::*;
+pub mod matrix;
+pub mod vector;
 
-mod matrix;
-mod vector;
-
-pub use matrix::Matrix;
-pub use vector::Vector;
-
-static ILLEGAL_SHAPE: &'static str = "illegal shape";
-static MISSMATCHED_SHAPE: &'static str = "missmatched shape";
-static MISSMATCHED_SHAPES: &'static str = "missmatched shapes";
-static INDEX_OUT_OF_BOUNDS: &'static str = "index out of bounds";
+/*pub use matrix::Matrix;*/
 
 pub fn randn() -> f64 {
     thread_rng().sample(StandardNormal)
