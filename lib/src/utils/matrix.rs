@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use mkl::blas::*;
 use mkl::vml::*;
 use std::ops::*;
@@ -6,7 +7,7 @@ use std::ops::*;
 pub struct Matrix {
     shape: (isize, isize),
     data: Vec<f64>,
-    transposed: bool,
+    transposed: RefCell<bool>,
 }
 
 impl Matrix {
@@ -15,7 +16,7 @@ impl Matrix {
         Self {
             shape,
             data: (0..shape.0 * shape.1).map(f).collect(),
-            transposed: false,
+            transposed: RefCell::new(false),
         }
     }
 
@@ -25,7 +26,7 @@ impl Matrix {
         Self {
             shape,
             data,
-            transposed: false,
+            transposed: RefCell::new(false),
         }
     }
 
@@ -47,9 +48,35 @@ impl Matrix {
         result
     }
 
-    pub fn transpose(&mut self) -> &mut Self {
-        self.transposed = !self.transposed;
+    pub fn imax(&self) -> isize {
+        unsafe {
+            IDAMAX(
+                &(self.data.len() as i32),
+                self.data.as_ptr(),
+                &1,
+            ) as isize
+        }
+    }
+
+    pub fn transpose(&self) -> &Self {
+        *self.transposed.borrow_mut() = !*self.transposed.borrow();
         self
+    }
+
+    pub fn map(&self, f: &Fn(f64) -> f64) -> Matrix {
+        Matrix::from_vec(self.shape, self.data.iter().map(|&x| f(x)).collect())
+    }
+
+    pub fn zip_map(&self, other: &Self, f: &Fn((f64, f64)) -> f64) -> Matrix {
+        Matrix::from_vec(self.shape, self.data.iter().zip(&other.data).map(|(&x, &y)| f((x, y))).collect())
+    }
+
+    pub fn apply(&mut self, f: &Fn(&mut f64)) {
+        self.data.iter_mut().for_each(f);
+    }
+
+    pub fn zip_apply(&mut self, other: &Self, f: &Fn((&mut f64, &f64))) {
+        self.data.iter_mut().zip(&other.data).for_each(f);
     }
 
     fn fix_index(&self, mut index: (isize, isize)) -> usize {
@@ -64,7 +91,7 @@ impl Matrix {
     }
 
     fn transpose_char(&self) -> i8 {
-        if self.transposed {
+        if *self.transposed.borrow() {
             'T' as i8
         } else {
             'N' as i8
@@ -78,7 +105,7 @@ impl Matrix {
         Self {
             shape,
             data: vec![val; (shape.0 * shape.1) as usize],
-            transposed: false,
+            transposed: RefCell::new(false),
         }
     }
 }
@@ -143,8 +170,8 @@ impl Mul<Self> for &Matrix {
         let m = self.shape.0 as i32;
         let n = other.shape.1 as i32;
         let k = self.shape.1 as i32;
-        let lda = if self.transposed { k } else { m };
-        let ldb = if other.transposed { n } else { k };
+        let lda = if *self.transposed.borrow() { k } else { m };
+        let ldb = if *other.transposed.borrow() { n } else { k };
         unsafe {
             DGEMM(
                 &self.transpose_char(),

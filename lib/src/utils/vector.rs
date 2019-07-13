@@ -1,8 +1,11 @@
+use std::slice::IterMut;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use std::isize;
-use std::iter::Sum;
+use std::iter::*;
 use std::ops::*;
+use std::slice::Iter;
+use std::vec::IntoIter;
 
 pub trait VectorUtils<'a, T: 'a> {
     fn data(&'a self) -> &'a [T];
@@ -19,12 +22,16 @@ pub trait VectorUtils<'a, T: 'a> {
         Vector::from_vec(self.data().iter().map(f).collect())
     }
 
-    fn zip_map<U: 'a, V, W: VectorUtils<'a, U>>(&'a self, other: &'a W, f: &Fn((&T, &U)) -> V) -> Vector<V> {
-        Vector::from_vec(self.data().iter().zip(other.data()).map(f).collect())
+    fn zip_map<U: 'a, V>(&'a self, other: &'a [U], f: &Fn((&T, &U)) -> V) -> Vector<V> {
+        Vector::from_vec(self.data().iter().zip(other).map(f).collect())
     }
 
     fn map_sum<U: Sum>(&'a self, f: &Fn(&T) -> U) -> U {
         self.data().iter().map(f).sum()
+    }
+
+    fn zip<U: 'a>(&'a self, other: &'a [U]) -> Zip<Iter<'a, T>, Iter<'a, U>> {
+        self.data().iter().zip(other)
     }
 
     fn fix_start(&'a self, start: isize) -> usize {
@@ -55,14 +62,14 @@ pub trait VectorUtilsMut<'a, T: 'a> {
         self.data_mut().iter_mut().for_each(f);
     }
 
-    fn zip_apply<U: 'a, V: VectorUtilsMut<'a, U>>(&'a mut self, other: &'a mut V, f: &Fn((&mut T, &mut U))) {
-        self.data_mut().iter_mut().zip(other.data_mut()).for_each(f);
+    fn zip_apply<U: 'a>(&'a mut self, other: &'a [U], f: &Fn((&mut T, &U))) {
+        self.data_mut().iter_mut().zip(other.data()).for_each(f);
     }
 }
 
 pub trait VectorUtilsCopy<'a, T: 'a>: VectorUtilsMut<'a, T> {
     fn shuffle(&'a mut self) {
-        self.data_mut().shuffle(&mut thread_rng());
+        SliceRandom::shuffle(self.data_mut(), &mut thread_rng());
     }
 }
 
@@ -73,11 +80,8 @@ pub struct Vector<T> {
 
 impl<T> Vector<T> {
     pub fn new() -> Self {
-        Self {
-            data: Vec::new(),
-        }
+        Self { data: Vec::new() }
     }
-    
     pub fn from_fn(len: isize, f: &Fn(isize) -> T) -> Self {
         assert!(len >= 0);
         Self {
@@ -87,11 +91,8 @@ impl<T> Vector<T> {
 
     pub fn from_vec(data: Vec<T>) -> Self {
         assert!(data.len() <= isize::MAX as usize);
-        Self {
-            data,
-        }
+        Self { data }
     }
-    
     pub fn push(&mut self, val: T) {
         self.data.push(val);
     }
@@ -100,7 +101,44 @@ impl<T> Vector<T> {
 impl<T: Copy> Vector<T> {
     pub fn from_val(len: isize, val: T) -> Self {
         assert!(len >= 0);
-        Self { data: vec![val; len as usize] }
+        Self {
+            data: vec![val; len as usize],
+        }
+    }
+}
+
+impl<T> Deref for Vector<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.data.deref()
+    }
+}
+
+impl<T> IntoIterator for Vector<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a Vector<T> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut Vector<T> {
+    type Item = &'a mut T;
+    type IntoIter = IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.iter_mut()
     }
 }
 
@@ -191,6 +229,20 @@ impl<'a, T: 'a> VectorUtilsMut<'a, T> for Vector<T> {
 }
 
 impl<'a, T: 'a> VectorUtilsCopy<'a, T> for Vector<T> {}
+
+impl<'a, T: 'a> VectorUtils<'a, T> for [T] {
+    fn data(&'a self) -> &'a [T] {
+        self
+    }
+}
+
+impl<'a, T: 'a> VectorUtilsMut<'a, T> for [T] {
+    fn data_mut(&'a mut self) -> &'a mut [T] {
+        self
+    }
+}
+
+impl<'a, T: 'a> VectorUtilsCopy<'a, T> for [T] {}
 
 impl<'a, T: 'a> VectorUtils<'a, T> for &'a [T] {
     fn data(&'a self) -> &'a [T] {
