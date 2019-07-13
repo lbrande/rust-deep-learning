@@ -3,14 +3,14 @@ use mkl::vml::*;
 use std::ops::*;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Matrix<T> {
+pub struct Matrix {
     shape: (isize, isize),
-    data: Vec<T>,
+    data: Vec<f64>,
     transposed: bool,
 }
 
-impl<T> Matrix<T> {
-    pub fn from_fn(shape: (isize, isize), f: &Fn(isize) -> T) -> Self {
+impl Matrix {
+    pub fn from_fn(shape: (isize, isize), f: &Fn(isize) -> f64) -> Self {
         assert!(shape.0 >= 0 && shape.1 >= 0);
         Self {
             shape,
@@ -19,7 +19,7 @@ impl<T> Matrix<T> {
         }
     }
 
-    pub fn from_vec(shape: (isize, isize), data: Vec<T>) -> Self {
+    pub fn from_vec(shape: (isize, isize), data: Vec<f64>) -> Self {
         assert!(shape.0 >= 0 && shape.1 >= 0);
         assert!((shape.0 * shape.1) as usize == data.len());
         Self {
@@ -33,6 +33,25 @@ impl<T> Matrix<T> {
         self.shape
     }
 
+    pub fn hadamard(&self, other: &Self) -> Self {
+        assert!(self.shape == other.shape);
+        let mut result = Matrix::from_val(self.shape, 0.0);
+        unsafe {
+            VDMUL_(
+                &(self.data.len() as i32),
+                self.data.as_ptr(),
+                other.data.as_ptr(),
+                result.data.as_mut_ptr(),
+            );
+        }
+        result
+    }
+
+    pub fn transpose(&mut self) -> &mut Self {
+        self.transposed = !self.transposed;
+        self
+    }
+
     fn fix_index(&self, mut index: (isize, isize)) -> usize {
         assert!(index.0 < self.shape.0);
         if index.0 < 0 {
@@ -43,10 +62,18 @@ impl<T> Matrix<T> {
         }
         index.1 as usize * self.shape.0 as usize + index.0 as usize
     }
+
+    fn transpose_char(&self) -> i8 {
+        if self.transposed {
+            'T' as i8
+        } else {
+            'N' as i8
+        }
+    }
 }
 
-impl<T: Copy> Matrix<T> {
-    pub fn from_val(shape: (isize, isize), val: T) -> Self {
+impl Matrix {
+    pub fn from_val(shape: (isize, isize), val: f64) -> Self {
         assert!(shape.0 >= 0 && shape.1 >= 0);
         Self {
             shape,
@@ -56,23 +83,23 @@ impl<T: Copy> Matrix<T> {
     }
 }
 
-impl<T> Index<(isize, isize)> for Matrix<T> {
-    type Output = T;
+impl Index<(isize, isize)> for Matrix {
+    type Output = f64;
 
     fn index(&self, index: (isize, isize)) -> &Self::Output {
         &self.data[self.fix_index(index)]
     }
 }
 
-impl<T> IndexMut<(isize, isize)> for Matrix<T> {
+impl IndexMut<(isize, isize)> for Matrix {
     fn index_mut(&mut self, index: (isize, isize)) -> &mut Self::Output {
         let index = self.fix_index(index);
         &mut self.data[index]
     }
 }
 
-impl Add<Self> for &Matrix<f64> {
-    type Output = Matrix<f64>;
+impl Add<Self> for &Matrix {
+    type Output = Matrix;
 
     fn add(self, other: Self) -> Self::Output {
         assert!(self.shape == other.shape);
@@ -89,8 +116,8 @@ impl Add<Self> for &Matrix<f64> {
     }
 }
 
-impl Sub<Self> for &Matrix<f64> {
-    type Output = Matrix<f64>;
+impl Sub<Self> for &Matrix {
+    type Output = Matrix;
 
     fn sub(self, other: Self) -> Self::Output {
         assert!(self.shape == other.shape);
@@ -107,8 +134,8 @@ impl Sub<Self> for &Matrix<f64> {
     }
 }
 
-impl Mul<Self> for &Matrix<f64> {
-    type Output = Matrix<f64>;
+impl Mul<Self> for &Matrix {
+    type Output = Matrix;
 
     fn mul(self, other: Self) -> Self::Output {
         assert!(self.shape.1 == other.shape.0);
@@ -139,8 +166,8 @@ impl Mul<Self> for &Matrix<f64> {
     }
 }
 
-impl Mul<f64> for &Matrix<f64> {
-    type Output = Matrix<f64>;
+impl Mul<f64> for &Matrix {
+    type Output = Matrix;
 
     fn mul(self, other: f64) -> Self::Output {
         let mut result = Matrix::from_val(self.shape, 0.0);
@@ -163,10 +190,10 @@ impl Mul<f64> for &Matrix<f64> {
     }
 }
 
-impl Mul<&Matrix<f64>> for f64 {
-    type Output = Matrix<f64>;
+impl Mul<&Matrix> for f64 {
+    type Output = Matrix;
 
-    fn mul(self, other: &Matrix<f64>) -> Self::Output {
+    fn mul(self, other: &Matrix) -> Self::Output {
         let mut result = Matrix::from_val(other.shape, 0.0);
         unsafe {
             DCOPY(
@@ -187,47 +214,18 @@ impl Mul<&Matrix<f64>> for f64 {
     }
 }
 
-impl Div<f64> for &Matrix<f64> {
-    type Output = Matrix<f64>;
+impl Div<f64> for &Matrix {
+    type Output = Matrix;
 
     fn div(self, other: f64) -> Self::Output {
         self.mul(1.0 / other)
     }
 }
 
-impl Div<&Matrix<f64>> for f64 {
-    type Output = Matrix<f64>;
+impl Div<&Matrix> for f64 {
+    type Output = Matrix;
 
-    fn div(self, other: &Matrix<f64>) -> Self::Output {
+    fn div(self, other: &Matrix) -> Self::Output {
         (1.0 / self).mul(other)
-    }
-}
-
-impl Matrix<f64> {
-    pub fn hadamard(&self, other: &Self) -> Self {
-        assert!(self.shape == other.shape);
-        let mut result = Matrix::from_val(self.shape, 0.0);
-        unsafe {
-            VDMUL_(
-                &(self.data.len() as i32),
-                self.data.as_ptr(),
-                other.data.as_ptr(),
-                result.data.as_mut_ptr(),
-            );
-        }
-        result
-    }
-
-    pub fn transpose(&mut self) -> &mut Self {
-        self.transposed = !self.transposed;
-        self
-    }
-
-    fn transpose_char(&self) -> i8 {
-        if self.transposed {
-            'T' as i8
-        } else {
-            'N' as i8
-        }
     }
 }
