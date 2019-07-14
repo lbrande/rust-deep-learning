@@ -48,9 +48,9 @@ impl Matrix {
     }
 
     pub fn transpose(&mut self) -> &mut Self {
-        unsafe {
+        /*unsafe {
             MKL_Dimatcopy('C' as i8, 'T' as i8, self.shape.0 as usize, self.shape.1 as usize, 1.0, self.data.as_mut_ptr(), self.shape.0 as usize, self.shape.1 as usize)
-        }
+        }*/
         self.shape = (self.shape.1, self.shape.0);
         self
     }

@@ -76,8 +76,7 @@ impl Network {
         for i in 2..self.nlayers {
             let i = i as isize;
             let sp = zs[-i].map(&sigmoid_prime);
-            let mut ab = self.weights[-i + 1].clone();
-            delta = (&*ab.transpose() * &delta).hadamard(&sp);
+            delta = (&*self.weights[-i + 1].clone().transpose() * &delta).hadamard(&sp);
             nabla_b[-i] = delta.clone();
             nabla_w[-i] = &delta.clone() * &*activations[-i - 1].transpose();
         }

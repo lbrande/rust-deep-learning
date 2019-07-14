@@ -6,7 +6,7 @@ use std::io::*;
 
 fn main() {
     let mut network = Network::new(&Vector::from_vec(vec![784, 100, 10]));
-    network.train(2, 10, 3.0, &mut load("train"), Some(&load("t10k")));
+    network.train(5, 10, 3.0, &mut load("train"), Some(&load("t10k")));
 }
 
 fn load(name: &str) -> Vec<Data> {
