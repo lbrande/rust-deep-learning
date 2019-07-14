@@ -4,8 +4,8 @@ use rand_distr::StandardNormal;
 mod matrix;
 mod vector;
 
-pub use vector::*;
 pub use matrix::*;
+pub use vector::*;
 
 pub fn randn() -> f64 {
     thread_rng().sample(StandardNormal)

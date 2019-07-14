@@ -1,15 +1,12 @@
-fn main() {
-    
-}
-/*use lib::*;
-use lib::utils::SliceUp;
+use lib::utils::*;
+use lib::*;
 
 use std::fs::File;
 use std::io::*;
 
 fn main() {
-    let mut network = Network::new(&[784, 100, 10]);
-    network.train(5, 10, 3.0, &mut load("train"), Some(&load("t10k")));
+    let mut network = Network::new(&Vector::from_vec(vec![784, 100, 10]));
+    network.train(2, 10, 3.0, &mut load("train"), Some(&load("t10k")));
 }
 
 fn load(name: &str) -> Vec<Data> {
@@ -18,10 +15,13 @@ fn load(name: &str) -> Vec<Data> {
     let (nimages, image_size) = read_info(&mut images, &mut labels);
     let mut result = Vec::new();
     for _ in 0..nimages {
-        let x = read_bytes(&mut images, image_size).map(&|&b| f64::from(b) / 255.0);
+        let x = read_bytes(&mut images, image_size)
+            .iter()
+            .map(&|&b| f64::from(b) / 255.0)
+            .collect();
         let mut y = vec![0.0; 10];
         y[read_bytes(&mut labels, 1)[0] as usize] = 1.0;
-        result.push(Network::data_from_vecs(x, y));
+        result.push(Network::vecs_into_data(x, y));
     }
     result
 }
@@ -44,4 +44,4 @@ fn read_bytes(file: &mut File, nbytes: usize) -> Vec<u8> {
     let mut buf = vec![0; nbytes];
     file.read_exact(&mut buf).unwrap();
     buf
-}*/
+}

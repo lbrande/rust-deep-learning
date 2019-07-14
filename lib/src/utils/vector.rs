@@ -1,10 +1,10 @@
-use std::slice::IterMut;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use std::isize;
 use std::iter::*;
 use std::ops::*;
 use std::slice::Iter;
+use std::slice::IterMut;
 use std::vec::IntoIter;
 
 pub trait VectorUtils<'a, T: 'a> {
