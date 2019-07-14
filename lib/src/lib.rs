@@ -53,21 +53,23 @@ impl Network {
         for data in batch {
             self.backpropagate(&mut nabla_b, &mut nabla_w, data);
         }
-        self.biases.zip_apply(&mut nabla_b, &|(b, nb): (&mut Matrix, &mut Matrix)| {
+        self.biases.zip_apply(&mut nabla_b, &|(b, nb)| {
             *nb *= learning_rate / batch.len() as f64;
             *b -= nb;
         });
-        self.weights.zip_apply(&mut nabla_w, &|(w, nw): (&mut Matrix, &mut Matrix)| {
+        self.weights.zip_apply(&mut nabla_w, &|(w, nw)| {
             *nw *= learning_rate / batch.len() as f64;
             *w -= nw;
         });
     }
 
     fn backpropagate(&self, nabla_b: &mut Vector<Matrix>, nabla_w: &mut Vector<Matrix>, (x, y): &Data) {
-        let mut activations = Vector::from_vec(vec![self.biases[0].clone()]);
-        Matrix::dgemv('N', &self.weights[0], x, &mut activations[0]);
-        activations[0].apply(&sigmoid);
+        let mut activations = Vector::from_vec(vec![x.clone()]);
+        activations.push(self.biases[0].clone());
+        Matrix::dgemv('N', &self.weights[0], x, &mut activations[1]);
         let mut zs = Vector::new();
+        zs.push(activations[1].clone());
+        zs[0].apply(&sigmoid);
         for (b, w) in self.biases[1..].zip(&self.weights[1..]) {
             let mut b = b.clone();
             Matrix::dgemv('N', &w, &activations[-1], &mut b);
@@ -75,25 +77,24 @@ impl Network {
             b.apply(&sigmoid);
             activations.push(b);
         }
-        let mut delta = Matrix::from_shape(activations[-1].shape());
-        delta.set_ref_to(&activations[-1]);
+        let mut delta = activations[-1].clone();
         delta -= y;
         zs[-1].apply(&sigmoid_prime);
         delta.hadamard(&zs[-1]);
         nabla_b[-1] += &delta;
-        let mut delta_nabla_w = Matrix::from_val((delta.shape().1, activations[-2].shape().1), 0.0);
+        let mut delta_nabla_w = Matrix::from_val((delta.shape().0, activations[-2].shape().0), 0.0);
         Matrix::dgemm('N', 'T', &delta, &activations[-2], &mut delta_nabla_w);
         nabla_w[-1] += &delta_nabla_w;
         for i in 2..self.nlayers {
             let i = i as isize;
             zs[-i].apply(&sigmoid_prime);
             let w = self.weights[-i + 1].clone();
-            let mut delta_new = Matrix::from_val((w.shape().0, delta.shape().0), 0.0);
+            let mut delta_new = Matrix::from_val((w.shape().1, delta.shape().1), 0.0);
             Matrix::dgemm('T', 'N', &w, &delta, &mut delta_new);
             delta = delta_new;
             delta.hadamard(&zs[-i]);
             nabla_b[-i] += &delta;
-            let mut delta_nabla_w = Matrix::from_val((delta.shape().1, activations[-i - 1].shape().1), 0.0);
+            let mut delta_nabla_w = Matrix::from_val((delta.shape().0, activations[-i - 1].shape().0), 0.0);
             Matrix::dgemm('N', 'T', &delta, &activations[-i - 1], &mut delta_nabla_w);
             nabla_w[-i] += &delta_nabla_w;
         }

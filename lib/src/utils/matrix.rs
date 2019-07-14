@@ -1,21 +1,13 @@
 use mkl::*;
 use std::ops::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Matrix {
     shape: (isize, isize),
     data: Vec<f64>,
 }
 
 impl Matrix {
-    pub fn from_shape(shape: (isize, isize)) -> Self {
-        assert!(shape.0 >= 0 && shape.1 >= 0);
-        Self {
-            shape,
-            data: Vec::with_capacity((shape.0 * shape.1) as usize),
-        }
-    }
-
     pub fn from_fn(shape: (isize, isize), f: &Fn(isize) -> f64) -> Self {
         assert!(shape.0 >= 0 && shape.1 >= 0);
         Self {
@@ -27,10 +19,7 @@ impl Matrix {
     pub fn from_vec(shape: (isize, isize), data: Vec<f64>) -> Self {
         assert!(shape.0 >= 0 && shape.1 >= 0);
         assert!((shape.0 * shape.1) as usize == data.len());
-        Self {
-            shape,
-            data,
-        }
+        Self { shape, data }
     }
 
     pub fn shape(&self) -> (isize, isize) {
@@ -58,16 +47,13 @@ impl Matrix {
     }
 
     pub fn zip_apply(&mut self, other: &Self, f: &Fn((f64, f64)) -> f64) {
-        self.data.iter_mut().zip(&other.data).for_each(|(x, &y)| *x = f((*x, y)));
+        self.data
+            .iter_mut()
+            .zip(&other.data)
+            .for_each(|(x, &y)| *x = f((*x, y)));
     }
 
-    pub fn set_ref_to(&mut self, other: &Self) {
-        unsafe {
-            *self.data.as_mut_ptr() = *other.data.as_ptr();
-        }
-    }
-
-    pub fn dgemv( trans : char, a_matrix : &Self , x_vector : &Self, y_vector : &mut Self) {
+    pub fn dgemv(trans: char, a_matrix: &Self, x_vector: &Self, y_vector: &mut Self) {
         let m = a_matrix.shape.0 as i32;
         let n = a_matrix.shape.1 as i32;
         unsafe {
@@ -87,12 +73,18 @@ impl Matrix {
         }
     }
 
-    pub fn dgemm( transa : char , transb : char, a_matrix : &Self , b_matrix : &Self, c_matrix : &mut Self) {
-        let m = a_matrix.shape.0 as i32;
-        let n = b_matrix.shape.1 as i32;
-        let k = a_matrix.shape.1 as i32;
+    pub fn dgemm(
+        transa: char,
+        transb: char,
+        a_matrix: &Self,
+        b_matrix: &Self,
+        c_matrix: &mut Self,
+    ) {
+        let m = if transa == 'N' { a_matrix.shape.0 as i32 } else { a_matrix.shape.1 as i32 };
+        let n = if transb == 'N' { b_matrix.shape.1 as i32 } else { b_matrix.shape.0 as i32 };
+        let k = if transa == 'N' { a_matrix.shape.1 as i32 } else { a_matrix.shape.0 as i32 };
         let lda = if transa == 'N' { m } else { k };
-        let ldb = if transa == 'N' { k } else { n };
+        let ldb = if transb == 'N' { k } else { n };
         unsafe {
             DGEMM(
                 &(transa as i8),
@@ -134,15 +126,25 @@ impl Matrix {
     }
 }
 
-impl Clone for Matrix {
+/*impl Clone for Matrix {
     fn clone(&self) -> Self {
         let mut clone = Vec::with_capacity((self.shape.0 * self.shape.1) as usize);
         unsafe {
-            DCOPY(&(self.data.len() as i32), self.data.as_ptr(), &1, clone.as_mut_ptr(), &1);
+            clone.set_len((self.shape.0 * self.shape.1) as usize);
+            DCOPY(
+                &(self.data.len() as i32),
+                self.data.as_ptr(),
+                &1,
+                clone.as_mut_ptr(),
+                &1,
+            );
         }
-        Self::from_vec(self.shape, clone)
+        Self {
+            shape: self.shape,
+            data: clone,
+        }
     }
-}
+}*/
 
 impl Index<(isize, isize)> for Matrix {
     type Output = f64;

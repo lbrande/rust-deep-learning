@@ -55,20 +55,20 @@ pub trait VectorUtils<'a, T: 'a> {
     }
 }
 
-pub trait VectorUtilsMut<T> {
-    fn data_mut(&mut self) -> &mut [T];
+pub trait VectorUtilsMut<'a, T: 'a> {
+    fn data_mut(&'a mut self) -> &'a mut [T];
 
-    fn apply<U>(&mut self, f: &Fn(&mut T)) {
+    fn apply<U>(&'a mut self, f: &Fn(&mut T)) {
         self.data_mut().iter_mut().for_each(f);
     }
 
-    fn zip_apply<U>(&mut self, other: &mut [U], f: impl Fn((&mut T, &mut U))) {
+    fn zip_apply<'b, U: 'b>(&'a mut self, other: &'b mut [U], f: &Fn((&mut T, &mut U))) {
         self.data_mut().iter_mut().zip(other.data_mut()).for_each(f);
     }
 }
 
-pub trait VectorUtilsCopy<T>: VectorUtilsMut<T> {
-    fn shuffle(&mut self) {
+pub trait VectorUtilsCopy<'a, T: 'a>: VectorUtilsMut<'a, T> {
+    fn shuffle(&'a mut self) {
         SliceRandom::shuffle(self.data_mut(), &mut thread_rng());
     }
 }
@@ -112,6 +112,12 @@ impl<T> Deref for Vector<T> {
 
     fn deref(&self) -> &Self::Target {
         self.data.deref()
+    }
+}
+
+impl<T> DerefMut for Vector<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.data.deref_mut()
     }
 }
 
@@ -222,13 +228,13 @@ impl<'a, T: 'a> VectorUtils<'a, T> for Vector<T> {
     }
 }
 
-impl<T> VectorUtilsMut<T> for Vector<T> {
-    fn data_mut(&mut self) -> &mut [T] {
+impl<'a, T: 'a> VectorUtilsMut<'a, T> for Vector<T> {
+    fn data_mut(&'a mut self) -> &'a mut [T] {
         &mut self.data
     }
 }
 
-impl<T> VectorUtilsCopy<T> for Vector<T> {}
+impl<'a, T: 'a> VectorUtilsCopy<'a, T> for Vector<T> {}
 
 impl<'a, T: 'a> VectorUtils<'a, T> for [T] {
     fn data(&'a self) -> &'a [T] {
@@ -236,13 +242,13 @@ impl<'a, T: 'a> VectorUtils<'a, T> for [T] {
     }
 }
 
-impl<T> VectorUtilsMut<T> for [T] {
-    fn data_mut(&mut self) -> &mut [T] {
+impl<'a, T: 'a> VectorUtilsMut<'a, T> for [T] {
+    fn data_mut(&'a mut self) -> &'a mut [T] {
         self
     }
 }
 
-impl<T> VectorUtilsCopy<T> for [T] {}
+impl<'a, T: 'a> VectorUtilsCopy<'a, T> for [T] {}
 
 impl<'a, T: 'a> VectorUtils<'a, T> for &'a [T] {
     fn data(&'a self) -> &'a [T] {
