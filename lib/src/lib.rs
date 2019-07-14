@@ -4,7 +4,7 @@ use utils::*;
 pub type Data = (Matrix, Matrix);
 
 pub struct Network {
-    nlayers: usize,
+    nlayers: isize,
     biases: Vector<Matrix>,
     weights: Vector<Matrix>,
 }
@@ -12,7 +12,7 @@ pub struct Network {
 impl Network {
     pub fn new(layers: &Vector<isize>) -> Self {
         Self {
-            nlayers: layers.len() as usize,
+            nlayers: layers.len(),
             biases: layers[1..].map(&|&x| Matrix::from_fn((x, 1), &|_| randn())),
             weights: (&layers[1..]).zip_map(&layers[..-1], &|(&x, &y)| {
                 Matrix::from_fn((x, y), &|_| randn())
@@ -48,46 +48,55 @@ impl Network {
     }
 
     fn train_batch(&mut self, batch: &[Data], learning_rate: f64) {
-        let (mut nabla_b, mut nabla_w) = self.nabla_zeros();
+        let mut nabla_b = self.biases.map(&|b| Matrix::from_val(b.shape(), 0.0));
+        let mut nabla_w = self.weights.map(&|w| Matrix::from_val(w.shape(), 0.0));
         for data in batch {
-            let (delta_nabla_b, delta_nabla_w) = self.backpropagate(data);
-            nabla_b.zip_apply(&delta_nabla_b, &|(nb, dnb)| *nb = &*nb + &*dnb);
-            nabla_w.zip_apply(&delta_nabla_w, &|(nw, dnw)| *nw = &*nw + &*dnw);
+            self.backpropagate(&mut nabla_b, &mut nabla_w, data);
         }
-        self.biases.zip_apply(&nabla_b, &|(b, nb)| {
-            *b = &*b - &(&(learning_rate * &*nb) / batch.len() as f64)
+        self.biases.zip_apply(&mut nabla_b, &|(b, nb): (&mut Matrix, &mut Matrix)| {
+            *nb *= learning_rate / batch.len() as f64;
+            *b -= nb;
         });
-        self.weights.zip_apply(&nabla_w, &|(w, nw)| {
-            *w = &*w - &(&(learning_rate * &*nw) / batch.len() as f64)
+        self.weights.zip_apply(&mut nabla_w, &|(w, nw): (&mut Matrix, &mut Matrix)| {
+            *nw *= learning_rate / batch.len() as f64;
+            *w -= nw;
         });
     }
 
-    fn backpropagate(&self, (x, y): &Data) -> (Vector<Matrix>, Vector<Matrix>) {
-        let (mut nabla_b, mut nabla_w) = self.nabla_zeros();
-        let mut activations = Vector::from_vec(vec![x.clone()]);
+    fn backpropagate(&self, nabla_b: &mut Vector<Matrix>, nabla_w: &mut Vector<Matrix>, (x, y): &Data) {
+        let mut activations = Vector::from_vec(vec![self.biases[0].clone()]);
+        Matrix::dgemv('N', &self.weights[0], x, &mut activations[0]);
+        activations[0].apply(&sigmoid);
         let mut zs = Vector::new();
-        for (b, w) in self.biases.zip(&self.weights) {
-            zs.push(&(w * &activations[-1]) + b);
-            activations.push(zs[-1].map(&sigmoid));
+        for (b, w) in self.biases[1..].zip(&self.weights[1..]) {
+            let mut b = b.clone();
+            Matrix::dgemv('N', &w, &activations[-1], &mut b);
+            zs.push(b.clone());
+            b.apply(&sigmoid);
+            activations.push(b);
         }
-        let mut delta = (&activations[-1] - y).hadamard(&(zs[-1].map(&sigmoid_prime)));
-        nabla_b[-1] = delta.clone();
-        nabla_w[-1] = &delta.clone() * &*activations[-2].transpose();
+        let mut delta = Matrix::from_shape(activations[-1].shape());
+        delta.set_ref_to(&activations[-1]);
+        delta -= y;
+        zs[-1].apply(&sigmoid_prime);
+        delta.hadamard(&zs[-1]);
+        nabla_b[-1] += &delta;
+        let mut delta_nabla_w = Matrix::from_val((delta.shape().1, activations[-2].shape().1), 0.0);
+        Matrix::dgemm('N', 'T', &delta, &activations[-2], &mut delta_nabla_w);
+        nabla_w[-1] += &delta_nabla_w;
         for i in 2..self.nlayers {
             let i = i as isize;
-            let sp = zs[-i].map(&sigmoid_prime);
-            delta = (&*self.weights[-i + 1].clone().transpose() * &delta).hadamard(&sp);
-            nabla_b[-i] = delta.clone();
-            nabla_w[-i] = &delta.clone() * &*activations[-i - 1].transpose();
+            zs[-i].apply(&sigmoid_prime);
+            let w = self.weights[-i + 1].clone();
+            let mut delta_new = Matrix::from_val((w.shape().0, delta.shape().0), 0.0);
+            Matrix::dgemm('T', 'N', &w, &delta, &mut delta_new);
+            delta = delta_new;
+            delta.hadamard(&zs[-i]);
+            nabla_b[-i] += &delta;
+            let mut delta_nabla_w = Matrix::from_val((delta.shape().1, activations[-i - 1].shape().1), 0.0);
+            Matrix::dgemm('N', 'T', &delta, &activations[-i - 1], &mut delta_nabla_w);
+            nabla_w[-i] += &delta_nabla_w;
         }
-        (nabla_b, nabla_w)
-    }
-
-    fn nabla_zeros(&self) -> (Vector<Matrix>, Vector<Matrix>) {
-        (
-            self.biases.map(&|b| Matrix::from_val(b.shape(), 0.0)),
-            self.weights.map(&|w| Matrix::from_val(w.shape(), 0.0)),
-        )
     }
 
     fn evaluate(&self, test_data: &[Data]) -> usize {
@@ -95,9 +104,14 @@ impl Network {
     }
 
     fn feedforward(&self, x: &Matrix) -> Matrix {
-        let mut a = x.clone();
-        for (b, w) in self.biases.zip(&self.weights) {
-            a = (&(w * &a) + b).map(&sigmoid);
+        let mut a = self.biases[0].clone();
+        Matrix::dgemv('N', &self.weights[0], x, &mut a);
+        a.apply(&sigmoid);
+        for (b, w) in self.biases[1..].zip(&self.weights[1..]) {
+            let mut b = b.clone();
+            Matrix::dgemv('N', &w, &a, &mut b);
+            b.apply(&sigmoid);
+            a = b;
         }
         a
     }
