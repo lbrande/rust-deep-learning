@@ -1,4 +1,3 @@
-use lib::utils::*;
 use lib::*;
 
 use std::fs::File;
@@ -15,13 +14,7 @@ fn load(name: &str) -> Vec<Data> {
     let (nimages, image_size) = read_info(&mut images, &mut labels);
     let mut result = Vec::new();
     for _ in 0..nimages {
-        let x = read_bytes(&mut images, image_size)
-            .iter()
-            .map(&|&b| f64::from(b) / 255.0)
-            .collect();
-        let mut y = vec![0.0; 10];
-        y[read_bytes(&mut labels, 1)[0] as usize] = 1.0;
-        result.push(Network::vecs_into_data(x, y));
+        //TODO fill result with data
     }
     result
 }
