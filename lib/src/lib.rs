@@ -10,19 +10,19 @@ pub type Data = (Vector, Vector);
 
 pub struct Network {
     nlayers: usize,
-    bs: Vec<Vector>,
-    ws: Vec<Matrix>,
+    biases: Vec<Vector>,
+    weights: Vec<Matrix>,
 }
 
 impl Network {
     pub fn new(layers: &[usize]) -> Self {
         Self {
             nlayers: layers.len(),
-            bs: layers[1..]
+            biases: layers[1..]
                 .iter()
                 .map(|&x| Vector::random(x, StandardNormal))
                 .collect(),
-            ws: layers[1..]
+            weights: layers[1..]
                 .iter()
                 .zip(&layers[..layers.len() - 1])
                 .map(|(&x, &y)| Matrix::random((x, y), StandardNormal))
@@ -58,48 +58,54 @@ impl Network {
     }
 
     fn train_batch(&mut self, learning_rate: f64, batch: &[Data]) {
-        let mut nabla_bs: Vec<Vector> = self.bs.iter().map(|b| Vector::zeros(b.dim())).collect();
-        let mut nabla_ws: Vec<Matrix> = self.ws.iter().map(|w| Matrix::zeros(w.dim())).collect();
+        let mut nabla_bs: Vec<Vector> =
+            self.biases.iter().map(|b| Vector::zeros(b.dim())).collect();
+        let mut nabla_ws: Vec<Matrix> = self
+            .weights
+            .iter()
+            .map(|w| Matrix::zeros(w.dim()))
+            .collect();
         for data in batch {
             self.backpropagate(&mut nabla_bs, &mut nabla_ws, data);
         }
-        self.bs
+        self.biases
             .iter_mut()
             .zip(&nabla_bs)
             .for_each(|(b, nb)| *b -= &((learning_rate / batch.len() as f64) * nb));
-        self.ws
+        self.weights
             .iter_mut()
             .zip(&nabla_ws)
             .for_each(|(w, nw)| *w -= &((learning_rate / batch.len() as f64) * nw));
     }
 
     fn backpropagate(&mut self, nabla_b: &mut [Vector], nabla_w: &mut [Matrix], (x, y): &Data) {
-        let mut acts = vec![x.clone()];
+        let mut activations = vec![x.clone()];
         let mut zs = Vec::new();
-        for (b, w) in self.bs.iter().zip(&self.ws) {
+        for (b, w) in self.biases.iter().zip(&self.weights) {
             let mut new_z = b.clone();
-            general_mat_vec_mul(1.0, w, &acts.last().unwrap(), 1.0, &mut new_z);
+            general_mat_vec_mul(1.0, w, &activations[activations.len() - 1], 1.0, &mut new_z);
             zs.push(new_z);
-            acts.push(zs.last().unwrap().iter().map(|x| sigmoid(*x)).collect());
+            activations.push(zs[zs.len() - 1].iter().map(|x| sigmoid(*x)).collect());
         }
-
-        let mut delta = (acts.last().unwrap() - y) * zs.last().unwrap().map(|x| sigmoid_prime(*x));
-        *nabla_b.last_mut().unwrap() += &delta;
-        let mut new_nabla_w = Matrix::zeros((delta.dim(), acts[acts.len() - 2].dim()));
+        let mut delta =
+            (&activations[activations.len() - 1] - y) * zs[zs.len() - 1].map(|x| sigmoid_prime(*x));
+        nabla_b[nabla_b.len() - 1] += &delta;
+        let mut new_nabla_w =
+            Matrix::zeros((delta.dim(), activations[activations.len() - 2].dim()));
         general_mat_mul(
             1.0,
             &as_matrix(&delta),
-            &as_matrix(&acts[acts.len() - 2]).t(),
+            &as_matrix(&activations[activations.len() - 2]).t(),
             1.0,
             &mut new_nabla_w,
         );
-        *nabla_w.last_mut().unwrap() += &new_nabla_w;
+        nabla_w[nabla_w.len() - 1] += &new_nabla_w;
         for i in 2..self.nlayers {
             let z = &zs[zs.len() - i];
-            let mut new_delta = Vector::zeros(self.ws[self.ws.len() - i + 1].dim().1);
+            let mut new_delta = Vector::zeros(self.weights[self.weights.len() - i + 1].dim().1);
             general_mat_vec_mul(
                 1.0,
-                &(&self.ws[self.ws.len() - i + 1]).t(),
+                &(&self.weights[self.weights.len() - i + 1]).t(),
                 &delta,
                 1.0,
                 &mut new_delta,
@@ -107,11 +113,12 @@ impl Network {
             new_delta *= &z.map(|x| sigmoid_prime(*x));
             delta = new_delta;
             nabla_b[nabla_b.len() - i] += &delta;
-            new_nabla_w = Matrix::zeros((delta.dim(), acts[acts.len() - i - 1].dim()));
+            new_nabla_w =
+                Matrix::zeros((delta.dim(), activations[activations.len() - i - 1].dim()));
             general_mat_mul(
                 1.0,
                 &as_matrix(&delta),
-                &as_matrix(&acts[acts.len() - i - 1]).t(),
+                &as_matrix(&activations[activations.len() - i - 1]).t(),
                 1.0,
                 &mut new_nabla_w,
             );
@@ -128,7 +135,7 @@ impl Network {
 
     fn feedforward(&self, input: &Vector) -> Vector {
         let mut a = input.clone();
-        for (b, w) in self.bs.iter().zip(&self.ws) {
+        for (b, w) in self.biases.iter().zip(&self.weights) {
             let mut new_a = b.clone();
             general_mat_vec_mul(1.0, w, &a, 1.0, &mut new_a);
             new_a.iter_mut().for_each(|x| *x = sigmoid(*x));
