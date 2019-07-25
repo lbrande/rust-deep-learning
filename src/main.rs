@@ -8,7 +8,7 @@ fn main() {
 }
 
 fn load(name: &str) -> Vec<Data> {
-    let mut images = File::pen(format!("{}-images.idx3-ubyte", name)).unwrap();
+    let mut images = File::open(format!("{}-images.idx3-ubyte", name)).unwrap();
     let mut labels = File::open(format!("{}-labels.idx1-ubyte", name)).unwrap();
     let (nimages, image_size) = read_info(&mut images, &mut labels);
     let mut result = Vec::new();
